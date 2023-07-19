@@ -1,18 +1,77 @@
 ﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Diagnostics;
+using Microsoft.Win32;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace BreakTimer
 {
+    class RegistryLogger
+    {
+        private const string SubKey = "BreakTimer";
+        private const string ValueName = "LogData";
+        private const int MaxLogLines = 10;
+
+        public static void Log(string message)
+        {
+            try
+            {
+                using (RegistryKey key = GetOrCreateSubKey())
+                {
+                    string[] existingLog = key.GetValue(ValueName) as string[];
+
+                    string newLogLine = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " - " + message;
+
+                    if (existingLog != null && existingLog.Length >= MaxLogLines)
+                    {
+                        existingLog = existingLog.Skip(1).ToArray(); // Remove the oldest log line
+                    }
+
+                    if (existingLog == null)
+                    {
+                        existingLog = new string[] { newLogLine };
+                    }
+                    else
+                    {
+                        existingLog = existingLog.Concat(new string[] { newLogLine }).ToArray();
+                    }
+
+                    // Save the updated log to the registry
+                    key.SetValue(ValueName, existingLog, RegistryValueKind.MultiString);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Handle any exceptions or log them to a different location if needed
+                Console.WriteLine("Error logging to the registry: " + ex.Message);
+            }
+        }
+
+        private static RegistryKey GetOrCreateSubKey()
+        {
+            RegistryKey currentUserKey = Registry.CurrentUser;
+            RegistryKey subKey = currentUserKey.OpenSubKey(SubKey, true);
+
+            if (subKey == null)
+            {
+                subKey = currentUserKey.CreateSubKey(SubKey);
+            }
+
+            return subKey;
+        }
+    }
+
     public partial class Form1 : Form
     {
         NotifyIcon notifyIcon;
         Button buttonDelayOneHour;
         Button buttonDelayTenMinutes;
         Button buttonSnooze3Minutes;
-        int breakTimeLength = 60;//seconds
-        int workTimeLength = 600;//seconds
-        int delayOneHour = 3600;//seconds
+        int breakTimeLength = 60; //seconds
+        int workTimeLength = 600; //seconds
+        int delayOneHour = 3600; //seconds
         int toBottomDistance = 120;
         int buttonWidth = 200;
         int buttonHeight = 40;
@@ -21,11 +80,12 @@ namespace BreakTimer
         Timer timerWork;
         Label labelCountdown;
         int currentCountdown = 60;
+        DateTime startupTime = DateTime.Now;
 
         public Form1()
         {
             InitializeComponent();
-            
+
             buttonDelayOneHour = new Button();
             buttonDelayOneHour.Location = new Point(12, 41);
             buttonDelayOneHour.Size = new Size(buttonWidth, buttonHeight);
@@ -39,7 +99,6 @@ namespace BreakTimer
             buttonDelayTenMinutes.Text = "Delay 10 minutes";
             buttonDelayTenMinutes.Click += new EventHandler(buttonclick_DeleyTenMinutes);
             this.Controls.Add(buttonDelayTenMinutes);
-            
 
             buttonSnooze3Minutes = new Button();
             buttonSnooze3Minutes.Location = new Point(12, 41);
@@ -56,19 +115,17 @@ namespace BreakTimer
             this.Controls.Add(labelCountdown);
 
             this.Load += new EventHandler(Form_Load);
-
             this.ShowInTaskbar = false;
             this.WindowState = FormWindowState.Minimized;
             this.Hide();
-            
         }
 
- 
         private void Form_Load(object sender, EventArgs e)
         {
             CreateNotifyIcon();
-            CreateContextMenu();
-            timerWork = new Timer(); ;
+            //CreateContextMenu();
+            timerWork = new Timer();
+            ;
             timerWork.Interval = workTimeLength * 1000;
             timerWork.Tick += TimerWork_Tick;
             timerWork.Start();
@@ -99,19 +156,20 @@ namespace BreakTimer
             labelCountdown.Text = currentCountdown.ToString();
             timerBreak.Start();
         }
-                
+
         private void buttonclick_DeleyOneHour(object sender, EventArgs e)
         {
             CreateNewTimer(delayOneHour * 1000);
         }
+
         private void buttonclick_DeleyTenMinutes(object sender, EventArgs e)
         {
             CreateNewTimer(delayOneHour / 6 * 1000);
         }
-        
+
         private void buttonclick_Snooze(object sender, EventArgs e)
         {
-            CreateNewTimer(delayOneHour / 20 * 1000);
+            CreateNewTimer(delayOneHour / 60 * 1000);
         }
 
         private void CreateNewTimer(int newInterval)
@@ -133,12 +191,25 @@ namespace BreakTimer
             int formWidth = this.Width;
             int formHeight = this.Height;
 
-            buttonDelayOneHour.Location = new Point(formWidth / 2 - buttonWidth - buttonWidth / 2 - buttonGap, formHeight - toBottomDistance);
-            buttonDelayTenMinutes.Location = new Point(formWidth / 2 - buttonWidth / 2, formHeight - toBottomDistance);
-            buttonSnooze3Minutes.Location = new Point(formWidth / 2 + buttonWidth / 2 + buttonGap, formHeight - toBottomDistance);
-            
-            labelCountdown.Location = new Point(formWidth / 2 - labelCountdown.Width / 2, formHeight / 2 - labelCountdown.Height / 2);
+            buttonDelayOneHour.Location = new Point(
+                formWidth / 2 - buttonWidth - buttonWidth / 2 - buttonGap,
+                formHeight - toBottomDistance
+            );
+            buttonDelayTenMinutes.Location = new Point(
+                formWidth / 2 - buttonWidth / 2,
+                formHeight - toBottomDistance
+            );
+            buttonSnooze3Minutes.Location = new Point(
+                formWidth / 2 + buttonWidth / 2 + buttonGap,
+                formHeight - toBottomDistance
+            );
+
+            labelCountdown.Location = new Point(
+                formWidth / 2 - labelCountdown.Width / 2,
+                formHeight / 2 - labelCountdown.Height / 2
+            );
         }
+
         private void CreateNotifyIcon()
         {
             notifyIcon = new NotifyIcon();
@@ -152,7 +223,7 @@ namespace BreakTimer
         private void CreateContextMenu()
         {
             ContextMenu contextMenu = new ContextMenu();
-            
+
             MenuItem menuItem = new MenuItem();
             menuItem.Text = "退出";
             menuItem.Click += new EventHandler(menuItem_ExitApp);
@@ -169,6 +240,25 @@ namespace BreakTimer
         private void menuItem_ExitApp(object sender, EventArgs e)
         {
             Application.Exit();
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_QUERYENDSESSION = 0x0011;
+            if (m.Msg == WM_QUERYENDSESSION)
+            {
+                DateTime currentTime = DateTime.Now;
+                TimeSpan timeSpan = currentTime - startupTime;
+
+                string message = string.Format(
+                    "BreakTimer has been running for {0} minutes.",
+                    timeSpan.TotalMinutes.ToString()
+                );
+                RegistryLogger.Log(message);
+                m.Result = (IntPtr)1;
+            }
+
+            base.WndProc(ref m);
         }
     }
 }
