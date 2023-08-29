@@ -1,4 +1,5 @@
-﻿using System;
+﻿
+using System;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -10,13 +11,13 @@ namespace BreakTimer
         readonly Button buttonDelayOneHour;
         readonly Button buttonDelayTenMinutes;
         readonly Button buttonSnooze3Minutes;
-        int breakTimeLength = 60; //seconds
-        int workTimeLength = 600; //seconds
-        int delayOneHour = 3600; //seconds
-        int toBottomDistance = 120;
-        int buttonWidth = 200;
-        int buttonHeight = 40;
-        int buttonGap = 40;
+        readonly int breakTimeLength = 60; //seconds
+        readonly int workTimeLength = 600; //seconds
+        readonly int delayOneHour = 3600; //seconds
+        readonly int toBottomDistance = 120;
+        readonly int buttonWidth = 200;
+        readonly int buttonHeight = 40;
+        readonly int buttonGap = 40;
         Timer timerBreak;
         Timer timerWork;
         Label labelCountdown;
@@ -32,10 +33,10 @@ namespace BreakTimer
 
             CreateLabel();
 
-            this.Load += new EventHandler(Form_Load);
-            this.ShowInTaskbar = false;
-            this.WindowState = FormWindowState.Minimized;
-            this.Hide();
+            Load += new EventHandler(Form_Load);
+            ShowInTaskbar = false;
+            WindowState = FormWindowState.Minimized;
+            Hide();
         }
 
         private void CreateLabel()
@@ -44,21 +45,23 @@ namespace BreakTimer
             {
                 Location = new Point(12, 41),
                 Size = new Size(buttonWidth, buttonWidth),
-                Text = "0",
-                Font = new Font(labelCountdown.Font.FontFamily, 80)
+                Text = "00",
+                Font = new Font("Arial", 80),
             };
-            this.Controls.Add(labelCountdown);
+            Controls.Add(labelCountdown);
         }
 
         private Button CreateButton(string text, EventHandler clickEvent)
         {
-            Button button = new Button();
-            button.Location = new Point(12, GetNextYPosition());
-            button.Size = new Size(buttonWidth, buttonHeight);
-            button.Text = text;
-            button.ForeColor = Color.Red;
+            var button = new Button
+            {
+                Location = new Point(12, GetNextYPosition()),
+                Size = new Size(buttonWidth, buttonHeight),
+                Text = text
+            };
             button.Click += new EventHandler(clickEvent);
-            this.Controls.Add(button);
+            Controls.Add(button);
+
             return button;
         }
 
@@ -72,7 +75,6 @@ namespace BreakTimer
             CreateNotifyIcon();
             CreateContextMenu();
             timerWork = new Timer();
-            ;
             timerWork.Interval = workTimeLength * 1000;
             timerWork.Tick += TimerWork_Tick;
             timerWork.Start();
@@ -89,7 +91,7 @@ namespace BreakTimer
             if (currentCountdown <= 0)
             {
                 timerBreak.Stop();
-                this.Hide();
+                Hide();
                 timerWork.Interval = workTimeLength * 1000;
                 timerWork.Start();
             }
@@ -121,7 +123,7 @@ namespace BreakTimer
 
         private void CreateNewTimer(int newInterval)
         {
-            this.Hide();
+            Hide();
             timerBreak.Stop();
             timerWork.Stop();
             timerWork.Interval = newInterval;
@@ -140,23 +142,23 @@ namespace BreakTimer
 
             void SetFullScreenProperties()
             {
-                this.FormBorderStyle = FormBorderStyle.None;
-                this.WindowState = FormWindowState.Maximized;
-                this.TopMost = true;
-                this.Show();
+                FormBorderStyle = FormBorderStyle.None;
+                WindowState = FormWindowState.Maximized;
+                TopMost = true;
+                Show();
             }
 
             void SetButtonLocation(Button button, int horizontalPosition)
             {
-                int x = this.Width / 2 + horizontalPosition * (buttonWidth + buttonGap);
-                int y = this.Height - toBottomDistance;
+                int x = Width / 2 + horizontalPosition * (buttonWidth + buttonGap);
+                int y = Height - toBottomDistance;
                 button.Location = new Point(x - buttonWidth / 2, y);
             }
 
             void SetLabelLocation(Label label)
             {
-                int x = this.Width / 2 - label.Width / 2;
-                int y = this.Height / 2 - label.Height / 2;
+                int x = Width / 2 - label.Width / 2;
+                int y = Height / 2 - label.Height / 2;
                 label.Location = new Point(x, y);
             }
         }
@@ -202,10 +204,7 @@ namespace BreakTimer
                 DateTime currentTime = DateTime.Now;
                 TimeSpan timeSpan = currentTime - startupTime;
 
-                string message = string.Format(
-                    "BreakTimer has been running for {0} minutes.",
-                    timeSpan.TotalMinutes.ToString()
-                );
+                string message = $"BreakTimer has been running for {timeSpan.TotalMinutes} minutes.";
                 RegistryLogger.Log(message);
                 m.Result = (IntPtr)1;
             }
