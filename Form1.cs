@@ -1,74 +1,15 @@
 ﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
-using System.Diagnostics;
-using Microsoft.Win32;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace BreakTimer
 {
-    class RegistryLogger
-    {
-        private const string SubKey = "BreakTimer";
-        private const string ValueName = "LogData";
-        private const int MaxLogLines = 10;
-
-        public static void Log(string message)
-        {
-            try
-            {
-                using (RegistryKey key = GetOrCreateSubKey())
-                {
-                    string[] existingLog = key.GetValue(ValueName) as string[];
-
-                    string newLogLine = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " - " + message;
-
-                    if (existingLog != null && existingLog.Length >= MaxLogLines)
-                    {
-                        existingLog = existingLog.Skip(1).ToArray(); // Remove the oldest log line
-                    }
-
-                    if (existingLog == null)
-                    {
-                        existingLog = new string[] { newLogLine };
-                    }
-                    else
-                    {
-                        existingLog = existingLog.Concat(new string[] { newLogLine }).ToArray();
-                    }
-
-                    // Save the updated log to the registry
-                    key.SetValue(ValueName, existingLog, RegistryValueKind.MultiString);
-                }
-            }
-            catch (Exception ex)
-            {
-                // Handle any exceptions or log them to a different location if needed
-                Console.WriteLine("Error logging to the registry: " + ex.Message);
-            }
-        }
-
-        private static RegistryKey GetOrCreateSubKey()
-        {
-            RegistryKey currentUserKey = Registry.CurrentUser;
-            RegistryKey subKey = currentUserKey.OpenSubKey(SubKey, true);
-
-            if (subKey == null)
-            {
-                subKey = currentUserKey.CreateSubKey(SubKey);
-            }
-
-            return subKey;
-        }
-    }
-
     public partial class Form1 : Form
     {
         NotifyIcon notifyIcon;
-        Button buttonDelayOneHour;
-        Button buttonDelayTenMinutes;
-        Button buttonSnooze3Minutes;
+        readonly Button buttonDelayOneHour;
+        readonly Button buttonDelayTenMinutes;
+        readonly Button buttonSnooze3Minutes;
         int breakTimeLength = 60; //seconds
         int workTimeLength = 600; //seconds
         int delayOneHour = 3600; //seconds
@@ -80,39 +21,16 @@ namespace BreakTimer
         Timer timerWork;
         Label labelCountdown;
         int currentCountdown = 60;
-        DateTime startupTime = DateTime.Now;
+        readonly DateTime startupTime = DateTime.Now;
 
         public Form1()
         {
             InitializeComponent();
+            buttonDelayOneHour = CreateButton("Delay 1 hour", buttonclick_DeleyOneHour);
+            buttonDelayTenMinutes = CreateButton("Delay 10 minutes", buttonclick_DeleyTenMinutes);
+            buttonSnooze3Minutes = CreateButton("Snooze 3 minutes", buttonclick_Snooze);
 
-            buttonDelayOneHour = new Button();
-            buttonDelayOneHour.Location = new Point(12, 41);
-            buttonDelayOneHour.Size = new Size(buttonWidth, buttonHeight);
-            buttonDelayOneHour.Text = "Delay 1 hour";
-            buttonDelayOneHour.Click += new EventHandler(buttonclick_DeleyOneHour);
-            this.Controls.Add(buttonDelayOneHour);
-
-            buttonDelayTenMinutes = new Button();
-            buttonDelayTenMinutes.Location = new Point(12, 41);
-            buttonDelayTenMinutes.Size = new Size(buttonWidth, buttonHeight);
-            buttonDelayTenMinutes.Text = "Delay 10 minutes";
-            buttonDelayTenMinutes.Click += new EventHandler(buttonclick_DeleyTenMinutes);
-            this.Controls.Add(buttonDelayTenMinutes);
-
-            buttonSnooze3Minutes = new Button();
-            buttonSnooze3Minutes.Location = new Point(12, 41);
-            buttonSnooze3Minutes.Size = new Size(buttonWidth, buttonHeight);
-            buttonSnooze3Minutes.Text = "Snooze 3 minutes";
-            buttonSnooze3Minutes.Click += new EventHandler(buttonclick_Snooze);
-            this.Controls.Add(buttonSnooze3Minutes);
-
-            labelCountdown = new Label();
-            labelCountdown.Location = new Point(12, 41);
-            labelCountdown.Size = new Size(buttonWidth, buttonWidth);
-            labelCountdown.Text = "0";
-            labelCountdown.Font = new Font(labelCountdown.Font.FontFamily, 80);
-            this.Controls.Add(labelCountdown);
+            CreateLabel();
 
             this.Load += new EventHandler(Form_Load);
             this.ShowInTaskbar = false;
@@ -120,10 +38,39 @@ namespace BreakTimer
             this.Hide();
         }
 
+        private void CreateLabel()
+        {
+            labelCountdown = new Label
+            {
+                Location = new Point(12, 41),
+                Size = new Size(buttonWidth, buttonWidth),
+                Text = "0",
+                Font = new Font(labelCountdown.Font.FontFamily, 80)
+            };
+            this.Controls.Add(labelCountdown);
+        }
+
+        private Button CreateButton(string text, EventHandler clickEvent)
+        {
+            Button button = new Button();
+            button.Location = new Point(12, GetNextYPosition());
+            button.Size = new Size(buttonWidth, buttonHeight);
+            button.Text = text;
+            button.ForeColor = Color.Red;
+            button.Click += new EventHandler(clickEvent);
+            this.Controls.Add(button);
+            return button;
+        }
+
+        private int GetNextYPosition()
+        {
+            return 41;
+        }
+
         private void Form_Load(object sender, EventArgs e)
         {
             CreateNotifyIcon();
-            //CreateContextMenu();
+            CreateContextMenu();
             timerWork = new Timer();
             ;
             timerWork.Interval = workTimeLength * 1000;
@@ -183,32 +130,37 @@ namespace BreakTimer
 
         private void EnterFullScreen()
         {
-            this.FormBorderStyle = FormBorderStyle.None;
-            this.WindowState = FormWindowState.Maximized;
-            this.TopMost = true;
-            this.Show();
+            SetFullScreenProperties();
 
-            int formWidth = this.Width;
-            int formHeight = this.Height;
+            SetButtonLocation(buttonDelayOneHour, -1);
+            SetButtonLocation(buttonDelayTenMinutes, 0);
+            SetButtonLocation(buttonSnooze3Minutes, 1);
 
-            buttonDelayOneHour.Location = new Point(
-                formWidth / 2 - buttonWidth - buttonWidth / 2 - buttonGap,
-                formHeight - toBottomDistance
-            );
-            buttonDelayTenMinutes.Location = new Point(
-                formWidth / 2 - buttonWidth / 2,
-                formHeight - toBottomDistance
-            );
-            buttonSnooze3Minutes.Location = new Point(
-                formWidth / 2 + buttonWidth / 2 + buttonGap,
-                formHeight - toBottomDistance
-            );
+            SetLabelLocation(labelCountdown);
 
-            labelCountdown.Location = new Point(
-                formWidth / 2 - labelCountdown.Width / 2,
-                formHeight / 2 - labelCountdown.Height / 2
-            );
+            void SetFullScreenProperties()
+            {
+                this.FormBorderStyle = FormBorderStyle.None;
+                this.WindowState = FormWindowState.Maximized;
+                this.TopMost = true;
+                this.Show();
+            }
+
+            void SetButtonLocation(Button button, int horizontalPosition)
+            {
+                int x = this.Width / 2 + horizontalPosition * (buttonWidth + buttonGap);
+                int y = this.Height - toBottomDistance;
+                button.Location = new Point(x - buttonWidth / 2, y);
+            }
+
+            void SetLabelLocation(Label label)
+            {
+                int x = this.Width / 2 - label.Width / 2;
+                int y = this.Height / 2 - label.Height / 2;
+                label.Location = new Point(x, y);
+            }
         }
+
 
         private void CreateNotifyIcon()
         {
